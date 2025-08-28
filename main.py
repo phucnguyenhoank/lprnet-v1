@@ -1,29 +1,30 @@
+#%%
 import tensorflow as tf
 
-batch_size = 1
+batch_size = 2
 time_steps = 71 # num frames
-num_classes = 37
+num_labels = 37
 max_label_length = 10
 
-# (batch, time, num_classes)
-logits = tf.random.normal([batch_size, time_steps, num_classes])
 
-# target label (say "1234" → mapped to int ids [1, 2, 3, 4])
-labels = tf.constant([[1, 2, 3, 4]], dtype=tf.int32)
+logits = tf.random.normal([batch_size, time_steps, num_labels])
+# list of logit length for each example in the batch[batch_size]
+logit_length = tf.constant([time_steps] * batch_size, dtype=tf.int32)
 
-# label lengths (number of valid tokens in each target sequence)
-label_length = tf.constant([4], dtype=tf.int32)
+y_true = tf.ragged.constant([
+    [1, 2, 5, 6, 1],
+    [2, 1, 3, 4, 3, 7, 2],
+], dtype=tf.int32)
 
-# logit lengths (sequence length output from model)
-logit_length = tf.constant([time_steps], dtype=tf.int32)
+labels = y_true.to_sparse()
 
 loss = tf.nn.ctc_loss(
     labels=labels,
     logits=logits,
-    label_length=label_length,
+    label_length=None, # auto inferred from the data (labels)
     logit_length=logit_length,
-    logits_time_major=False,  # our logits are (batch, time, classes)
-    blank_index=num_classes - 1
+    logits_time_major=False,  # our logits are (batch, time, num_labels)
+    blank_index=0
 )
 
-print("CTC Loss:", loss.numpy())
+print("CTC Loss:", loss)
