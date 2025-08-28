@@ -19,9 +19,8 @@ class small_basic_block(nn.Module):
 
 # Create model
 class LPRNet(nn.Module):
-    def __init__(self, phase, lpr_max_len, class_num, dropout_rate=0.5):
+    def __init__(self, lpr_max_len, class_num, dropout_rate=0.5):
         super(LPRNet, self).__init__()
-        self.phase = phase
         self.lpr_max_len = lpr_max_len
         self.class_num = class_num
 
@@ -83,11 +82,6 @@ class LPRNet(nn.Module):
         for i, layer in enumerate(self.backbone.children()):
             print(f"{i}: {layer}")
 
-def build_lprnet(lpr_max_len=8, phase=False, class_num=37, dropout_rate=0.5):
+def build_lprnet(lpr_max_len=10, class_num=37, dropout_rate=0.5):
 
-    lprnet = LPRNet(lpr_max_len, phase, class_num, dropout_rate)
-
-    if phase == "train":
-        return lprnet.train()
-    else:
-        return lprnet.eval()
+    return LPRNet(lpr_max_len, class_num, dropout_rate)
