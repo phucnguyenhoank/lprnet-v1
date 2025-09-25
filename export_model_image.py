@@ -1,10 +1,15 @@
 import torch
-from torchview import draw_graph
 from model.LPRNet import build_lprnet
 
 model = build_lprnet(class_num=37)
-# state_dict = torch.load("Final_LPRNet_model.pth", map_location="cpu")
-# model.load_state_dict(state_dict)
+dummy = torch.randn(1, 3, 24, 94)
 
-graph = draw_graph(model, input_size=(1, 3, 24, 94), expand_nested=True)
-graph.visual_graph.render("lprnet_architecture", format="png")  # saves a diagram
+torch.onnx.export(
+    model,
+    dummy,
+    "lprnet.onnx",
+    opset_version=20,   # or 17 if you want max compatibility
+    input_names=["input"],
+    output_names=["output"],
+    dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+)

@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torchsummary import summary
 
 class small_basic_block(nn.Module):
     def __init__(self, ch_in, ch_out):
@@ -23,12 +25,6 @@ class LPRNet(nn.Module):
         super(LPRNet, self).__init__()
         self.lpr_max_len = lpr_max_len
         self.class_num = class_num
-
-        # NEW: add 3 stacked 1x1 conv layers to expand 1 channel → 3 channels
-        self.input_adapter = nn.Sequential(
-            nn.Conv2d(1, 3, kernel_size=1),  # 1 → 3
-            nn.ReLU(),
-        )
 
         self.backbone = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1),
@@ -61,9 +57,43 @@ class LPRNet(nn.Module):
                       out_channels=self.class_num,
                       kernel_size=(1, 1), stride=(1, 1)),
         )
-        
+
+        self.localization = nn.Sequential(
+            nn.Conv2d(3, 8, kernel_size=7),
+            nn.MaxPool2d(2, stride=2),
+            nn.ReLU(True),
+            nn.Conv2d(8, 10, kernel_size=5),
+            nn.MaxPool2d(2, stride=2),
+            nn.ReLU(True)
+        )
+
+        # Regressor for the 3 * 2 affine matrix
+        self.fc_loc = nn.Sequential(
+            nn.Linear(10 * 2 * 20, 32),
+            nn.ReLU(True),
+            nn.Linear(32, 3 * 2)
+        )
+
+        # Initialize the weights/bias with identity transformation
+        self.fc_loc[2].weight.data.zero_()
+        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+
+    # Spatial transformer network forward function
+    def stn(self, x):
+        # x = torch.Size([2, 1, 24, 94])
+        xs = self.localization(x)
+        xs = xs.view(xs.size(0), -1) # torch.Size([2, 10, 2, 20])
+        theta = self.fc_loc(xs)  # torch.Size([2, 6])
+        theta = theta.view(theta.size(0), 2, 3)
+
+        grid = F.affine_grid(theta, x.size(), align_corners=True)
+        x = F.grid_sample(x, grid, align_corners=True)
+
+        return x
+
     def forward(self, x):
-        x = self.input_adapter(x)  # preprocess 1ch → 3ch
+        # transform the input
+        x = self.stn(x)
 
         keep_features = list()
         for i, layer in enumerate(self.backbone.children()):
